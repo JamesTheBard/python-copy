@@ -99,8 +99,12 @@ class PyCopy(object):
 
 
     def create_file_bar(self, file_name, file_size):
+        file_width = 55
+        file_mask = "%%-%is" % file_width
+        if len(file_name) > file_width:
+            file_name = file_name[:25] + "..." + file_name[(-1 * (file_width - 28)):]
         widgets=[
-            FormatLabel('%-39s' % file_name[0:39]), ' ',
+            FormatLabel(file_mask % file_name), ' ',
             Percentage(), ' ',
             Bar(), ' ',
             ETA()
@@ -109,8 +113,12 @@ class PyCopy(object):
         return pbar
 
     def create_directory_bar(self, number_of_dirs, root):
+        file_width = 51
+        file_mask = "[D] %%-%is" % file_width
+        if len(root) > file_width:
+            root = "..." + root[(-1 * (file_width - 3)):]
         widgets=[
-            FormatLabel("[D] %-35s" % root[:35]), ' ',
+            FormatLabel(file_mask % root), ' ',
             Percentage(), ' ',
             Bar(), ' ',
             SimpleProgress()
