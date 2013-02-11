@@ -1,0 +1,127 @@
+#!/bin/env python
+
+import os
+from progressbar import ProgressBar, Percentage, Bar, ETA, FormatLabel, SimpleProgress
+import sys
+import time
+import shutil
+
+class PyCopy(object):
+    '''A blatant copy of the cp command with a bit more attitude.'''
+
+    DEFAULT_BLOCK_SIZE = 32768
+
+    def __init__(self, source, destination, block_size=None):
+        if block_size == None:
+            self.block_size = self.DEFAULT_BLOCK_SIZE
+        else:
+            self.block_size = block_size
+        self.destination = destination
+        self.sources = source
+
+    def copy(self):
+        if len(self.sources) == 1:
+            source = self.sources[0]
+            if os.path.isdir(source):
+                self.copy_directory(source, self.destination)
+                return
+            elif not os.path.isfile(source):
+                print "The source file '%s' does not exist." % source
+                sys.exit(2)
+        for source in self.sources:
+            if not os.path.exists(source):
+                print "The path '%s' does not exist" % source
+                sys.exit(2)
+            if os.path.isdir(source):
+                self.copy_directory(source, self.destination)
+            elif os.path.isfile(source) and os.path.isdir(self.destination):
+                relative = os.path.basename(source)
+                destination = os.path.join(self.destination, relative)
+                self.copy_file(source, destination)
+            else:
+                print "Nope."
+                return
+
+    def copy_file(self, source, destination):
+        file_size = os.path.getsize(source)
+        if file_size == 0:
+            pbar = self.create_file_bar(source, 1)
+            pbar.start()
+            dest_file = open(destination, 'wb')
+            dest_file.close()
+            shutil.copymode(source, destination)
+            pbar.finish()
+            return
+        source_file = open(source, 'rb')
+        destination_file = open(destination, 'wb')
+        pbar = self.create_file_bar(source, file_size)
+        pbar.start()
+        progress = 0
+        while True:
+            block = source_file.read(self.block_size)
+            if not block:
+                break
+            destination_file.write(block)
+            progress += len(block)
+            pbar.update(progress)
+        shutil.copymode(source, destination)
+        source_file.close()
+        destination_file.close()
+        pbar.finish()
+
+    def copy_directory(self, source, destination):
+        rel_dir = os.path.basename(source)
+        dest_dir = os.path.join(destination, rel_dir)
+        os.mkdir(dest_dir)
+        shutil.copymode(source, dest_dir)
+        for root, dirs, files in os.walk(source, followlinks=False):
+            number_of_dirs = len(dirs)
+            if number_of_dirs > 0:
+                pbar = self.create_directory_bar(number_of_dirs, root)
+                pbar.start()
+                directories = 0
+                for dir in dirs:
+                    src = os.path.basename(source)
+                    realpath = os.path.join(root, dir)
+                    relpath = os.path.relpath(realpath, source)
+                    dest = os.path.join(destination, src, relpath)
+                    os.mkdir(dest)
+                    shutil.copymode(realpath, dest)
+                    directories += 1
+                    pbar.update(directories)
+                pbar.finish()
+            for name in files:
+                src = os.path.basename(source)
+                realpath = os.path.join(root, name)
+                relpath = os.path.relpath(realpath, source)
+                dest = os.path.join(destination, src, relpath)
+                self.copy_file(realpath, dest)
+
+
+    def create_file_bar(self, file_name, file_size):
+        widgets=[
+            FormatLabel('%-39s' % file_name[0:39]), ' ',
+            Percentage(), ' ',
+            Bar(), ' ',
+            ETA()
+        ]
+        pbar = ProgressBar(widgets=widgets, maxval=file_size)
+        return pbar
+
+    def create_directory_bar(self, number_of_dirs, root):
+        widgets=[
+            FormatLabel("[D] %-35s" % root[:35]), ' ',
+            Percentage(), ' ',
+            Bar(), ' ',
+            SimpleProgress()
+        ]
+        pbar = ProgressBar(widgets=widgets, maxval=number_of_dirs)
+        return pbar
+
+if __name__ == "__main__":
+    destination = sys.argv.pop()
+    source = sys.argv[1:]
+    destination = os.path.abspath(destination)
+    source = [os.path.abspath(i) for i in source]
+    pycp = PyCopy(source, destination)
+    pycp.copy()
